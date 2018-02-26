@@ -1,20 +1,19 @@
-""" Regulating Exploration Over Arms Life """
+""" Regulating Exploration Over Dying Arms in Moratal Bandits"""
 
 #-------------------------------------------------------------------------------
-# RGOT library for Python - Mortal setting
+# RGODA library for Python - Mortal setting
 #-------------------------------------------------------------------------------
 
-
+from pprint import pprint  #pretty print for dictionaries
 #-------------------------------------------------------------------------------
 # Import useful modules
 #-------------------------------------------------------------------------------
 # module used to get the highest values from a list:
 import heapq
 # bandit functions:
-from RGOT import create_relevance, create_regression_coefficients_for_life
 from arms import create_arms_with_context, add_newborn_arms_with_context, set_arms_life
 from greed import set_G_as, compute_z, compute_z2
-from df_context_generator import create_columns_names, create_context_df, context_distance, context_similarity
+from df_context_generator import create_columns_names, create_context_df, context_distance, context_similarity, create_relevance, create_regression_coefficients_for_life
 from arms import create_arms_with_context, get_best_estimate_arm_index, remove_arms_that_died, get_mean_of
 from rewards import get_reward_contextual, initialize_mean_reward_contextual, get_reward_modifier, update_arm_with_context, create_reward_history, create_tradeoff_history
 from policy import choose_arm_and_tradeoff_with_context
@@ -35,14 +34,9 @@ import numpy as np
 # The following functions plays one istance of the multi-armed bandit algorithm
 #-------------------------------------------------------------------------------
 
-## plot z redu/blue
-## missing G
-## plot predicted vs G
-## triple_exponential_smoothing (detect seasonality)
-## save results of closeness
-## look for theorems on closeness of prediction ?
-## compare performance and use best_arm_so_far
-## arma arima
+# G list of 1's
+
+
 
 def RGOT(G, number_of_turns, number_of_arms, \
     arms_behavior, toPredict = None, NonContextual = False, policies =  [], \
@@ -54,7 +48,7 @@ def RGOT(G, number_of_turns, number_of_arms, \
     #     p = [1.0]
     # # open file of arms:
     # else:
-    contextual_relevance = create_relevance(arms_features_space,contextual_space, method = "Uniform")
+    contextual_relevance = create_relevance(arms_features_space, contextual_space, method = "Uniform")
     #if NonContextual == True:
     a_low, b_high = 0,  1#compute_range_of_rewards(arms_behavior, contextual_relevance, contextual_space, arms_features_space)
     #coefficients_context = get_coefficients(contextual_space)
@@ -118,7 +112,7 @@ def RGOT(G, number_of_turns, number_of_arms, \
             trend_G[t] = beta_smoothing_parameter*(PREDICTED-predicted_G[t-1]) + (1.0-beta_smoothing_parameter)*trend_G[t-1]
         if mortal > 0: # update arms if you are playing a mortal game
             arms, dead_arms, number_of_arms_dead = remove_arms_that_died(arms, dead_arms)                                                     # remove arms that died and subtracts 1 from remaining life
-            arms, number_of_arms_born = add_newborn_arms_with_context(arms, dead_arms, total_of_arms_born,  poisson_parameter, arms_behavior, policies, arms_features_space, mortal, contextual_space, life_method, arms_p_and_type,  initialization_method = initialization_method,  list_true_regression_coefficients = list_true_regression_coefficients)
+            arms, number_of_arms_born = add_newborn_arms_with_context(arms, t, dead_arms, total_of_arms_born,  poisson_parameter, arms_behavior, policies, arms_features_space, mortal, contextual_space, life_method, arms_p_and_type,  initialization_method = initialization_method,  list_true_regression_coefficients = list_true_regression_coefficients)
             total_of_arms_born        += number_of_arms_born
             if len(arms) == 0: #nothing to play
                 continue # go to next t and hopefully you add an arm
@@ -148,321 +142,33 @@ def RGOT(G, number_of_turns, number_of_arms, \
     else:
         return arms, rewards_history, tradeoff_history, total_of_arms_born, dead_arms, contextual_relevance
 
-contextual_space = {}
-contextual_space["continuous"]   = [  ["Normal", 3, 1], ["Normal", 13, 1], ["Uniform",0,10]  ]
-contextual_space["binary"]       = [  0.9,   0,  0,  0.8,   0.9  ]
-contextual_space["discrete"]     = [  ["Poisson",3], ["Poisson", 13], ["Uniform",0,10]  ]
-contextual_space["categorical"]  = [ ]
-contextual_space["norm_type"]    = "l2"
-
-arms_features_space = {}
-arms_features_space["continuous"]   = [  ["Normal", 31, 5],["Normal", 13, 5],["Uniform",4,20]  ]
-arms_features_space["binary"]       = [  0.7,  0.2,  0.3 ]
-arms_features_space["discrete"]     = [  ["Poisson",2], ["Uniform",5,11]  ]
-arms_features_space["categorical"]  = [    ]
-arms_features_space["norm_type"]    = "l2"
-
-arms_features_space = {}
-arms_features_space["continuous"]   = [   ]
-arms_features_space["binary"]       = [   0.5, 0.1, 0.9, 0.3 , 0.5, 0.1, 0.9, 0.7,0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.3 ,0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.7,  0.2,  0.3 ]
-arms_features_space["discrete"]     = [   ]
-arms_features_space["categorical"]  = [    ]
-arms_features_space["norm_type"]    = "l2"
-
-contextual_space = {}
-contextual_space["continuous"]   = [   ]
-contextual_space["binary"]       = [  0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.3 , 0.5, 0.1, 0.9, 0.7,0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.3 ]
-contextual_space["discrete"]     = [  ]
-contextual_space["categorical"]  = [ ]
-contextual_space["norm_type"]    = "l2"
-
-no_arms_feature = { "continuous": [], "binary":[1.0], "discrete":[], "categorical": [], "norm_type": "l2"}
-
-def create_regression_coefficients_for_life(arms_features_space):
-    if arms_features_space == { "continuous": [], "binary":[1.0], "discrete":[], "categorical": [], "norm_type": "l2"}:
-        return None
-    else:
-        number_of_arms_features = len(arms_features_space["continuous"])+len(arms_features_space["binary"])+len(arms_features_space["discrete"] )+len(arms_features_space["categorical"])
-        coeff_list = [False]*number_of_arms_features
-        for j in range(number_of_arms_features):
-            coeff_list[j] = np.random.uniform(-5.0,15.0)
-        return coeff_list
-
-
-def create_relevance(arms_features_space,contextual_space, method = "Uniform"):
-    """ For each arm feature gives the relevance it has for each context  """
-    number_of_arms_features = len(arms_features_space["continuous"])+len(arms_features_space["binary"])+len(arms_features_space["discrete"] )+len(arms_features_space["categorical"])
-    number_of_contextual_features = len(contextual_space["continuous"])+len(contextual_space["binary"])+len(contextual_space["discrete"])+len(contextual_space["categorical"])
-    contextual_relevance = {}
-    for j in range(number_of_arms_features):
-        contextual_relevance["arm_feature_"+str(j)] = [False]*number_of_contextual_features
-        if method == "Uniform":
-            for x in range(number_of_contextual_features):
-                contextual_relevance["arm_feature_"+str(j)][x] = np.random.uniform(-1.0,1.0)
-        elif method == "Normal":
-            for x in range(number_of_contextual_features):
-                contextual_relevance["arm_feature_"+str(j)][x] = min(max(np.random.normal(0.0,1.0),-1.0),1.0)
-        else:
-            print("No method found")
-    return contextual_relevance
-
-def compute_range_of_rewards(arms_behavior, contextual_relevance, contextual_space, arms_features_space):
-    a_low = 0
-    b_high = 80
-    return a_low, b_high
-
-# def get_coefficients(space):
-#     # get coefficients for arms features
-#     size = len(space["continuous"])+len(space["binary"])+len(space["discrete"] )
-#     print(size)
-#     coefficients = [False]*size
-#     for j in range(len(space["continuous"])):
-#         print(j)
-#         if space["continuous"][j][0]=="Normal":
-#             coefficients[j] = float(space["continuous"][j][1]) + 2*space["continuous"][j][2]
-#         elif space["continuous"][j][0]=="Uniform":
-#             coefficients[j] = float(space["continuous"][j][1] + space["continuous"][j][1])/2
-#     for j in range(len(space["continuous"]), len(space["continuous"])+len(space["binary"])):
-#         print(j)
-#         coefficients[j] = 1.0
-#     i = 0
-#     for j in range(len(space["continuous"])+len(space["binary"]), len(space["continuous"])+len(space["binary"])+len(space["discrete"])):
-#         print(j)
-#         if space["discrete"][i][0]=="Poisson":
-#             coefficients[j] = float(space["discrete"][i][1])+2*space["discrete"][i][1]
-#             i+=1
-#         elif space["discrete"][i][0]=="Uniform":
-#             coefficients[j] = float(space["discrete"][i][2]+space["discrete"][i][2]) ##
-#             i+=1
-#     return coefficients
-
-
-
-
-
-a,b,c,d,e=RGOT(G,toPredict = None, number_of_turns = 200, number_of_arms = 15, \
-    arms_behavior = "Bernoulli",policies =  ["LinUCB"], NonContextual = True, \
-    mortal = 20, poisson_parameter = 0.2)
-
-a,b,c,d,e=RGOT(G,toPredict = None, number_of_turns = 200, number_of_arms = 15, \
-    arms_behavior = "Bernoulli",policies =  ["LinUCB"], NonContextual = True, \
-    mortal = 20, poisson_parameter = 0.2, initialization_method="Contextual", greed_type="None",\
-    contextual_space=contextual_space)
-
-
-"LinUCB","LinUCB_greedy","LinUCB_bayesian","LinUCB_bayesian_greedy","Epsilon_greedy_kernel","Epsilon_z_greedy_kernel"
-
-
-for i in ["Contextual","Mean", "Weighted_Mean", "Mean_Std", "Weighted_Mean_Std", None]:
-    print(i)
-    policy = "LinUCB"
-    a,b,c,d,e=RGOT(G,toPredict = None, number_of_turns = 1000, number_of_arms = 15, \
-        arms_behavior = "Bernoulli",policies =  [policy], \
-        mortal = 15, poisson_parameter = 7, initialization_method=i, greed_type="None",\
-        continuous = 9, distributions_continuous = [["Normal", 3, 1],["Normal", 13, 1],["Uniform",0,10],["Normal", 3, 1],["Normal", 13, 1],["Uniform",5,14],["Normal", 22, 8],["Normal", 33, 10],["Uniform",10,30]], \
-        binary = 5, p=[0.9,0.3,0.5,0.6,0.9], discrete = 6, distributions_discrete = [  ["Poisson",3], ["Poisson", 13], ["Uniform",0,10],["Poisson",7], ["Poisson", 8], ["Uniform",4,17]  ], \
-        categorical = 0, categories = [ ]   , norm_type="l1")
-    print(sum(b[policy]))
-
-# for i in ["Mean", "Weighted_Mean", "Mean_Std", "Weighted_Mean_Std"]:
-#     policy="LinUCB"
-#     a,b,c,d,e=RGOT(G,toPredict = None, number_of_turns = 900, number_of_arms = 25, \
-#         arms_behavior = "Bernoulli",policies = [policy], \
-#         mortal = 20, poisson_parameter = 0.2, initialization_method=i, greed_type="None",\
-#         continuous = 3, distributions_continuous = [["Normal", 3, 1],["Normal", 13, 1],["Uniform",0,10]], \
-#         binary = 5, p=[0.9,0,0,0.8,0.9], discrete = 3, distributions_discrete = [  ["Poisson",3], ["Poisson", 13], ["Uniform",0,10]  ],  norm_type="l1")
-#     print(i)
-#     print(sum(b[policy]))
-
-
-for i in ["Contextual","Mean", "Weighted_Mean", "Mean_Std", "Weighted_Mean_Std", None]:
-    policy="LinUCB"
-    aa,bb,cc,dd,ee=RGOT(G,toPredict = None, number_of_turns = 1500, number_of_arms = 25, \
-        arms_behavior = "Bernoulli_low",policies =  [policy], \
-        mortal = 40, poisson_parameter = 0.35, initialization_method=i, greed_type="None",\
-        continuous = 0, distributions_continuous = [], \
-        binary = 1, p=[1.0], discrete = 0, distributions_discrete = [  ], norm_type="l1")
-    print(i)
-    print(sum(bb[policy]))
-
-
-,"LinUCB_greedy","LinUCB_bayesian","LinUCB_bayesian_greedy","Epsilon_greedy_kernel","Epsilon_z_greedy_kernel"
-sum(bb["Adaptive_greedy"])
-sum(b["Epsilon_greedy_kernel"])
-sum(b["Epsilon_z_greedy_kernel"])
-sum(b["LinUCB"])
-sum(b["LinUCB_greedy"])
-sum(b["LinUCB_bayesian"])
-sum(b["LinUCB_bayesian_greedy"])
-
-df, rewards_history, tradeoff_history, total_of_arms_born, \
-past_G_and_predicted_Gt, predicted_G, trend_G = RGOT(H, toPredict = "moving_weighted_average", number_of_turns = 1500, number_of_arms = 200, \
-    arms_behavior = "Truncated_Normal",policies = ["Epsilon_greedy", "UCB", \
-                         "Epsilon_z_greedy",  "UCB_z" , \
-                         "Epsilon_soft_greedy", "UCB_soft", \
-                         "variable_pool"], \
-    mortal = False, poisson_parameter = 0.2)
-sum(b["UCB"])
-sum(b["UCB_z"])
-sum(b["Epsilon_greedy_kernel"])
-sum(b["Epsilon_z_greedy"])
-sum(b["Epsilon_soft_greedy"])
-sum(b["UCB_soft"])
-sum(b["variable_pool"])
-#np.array(f)-np.array(G[0:len(f)])
-sum(np.abs(np.array(f)-np.array(G[0:len(f)])))
-# sum(b["Adaptive_greedy"])
-# sum(b["Adaptive_greedy_z"])
-# sum(b["Mortal_RGOT"])
-sum(b["Epsilon_greedy"])
-sum(b["UCB_soft"])
-sum(b["variable_pool"])
-
-
-#-------------------------------------------------------------------------------
-# RGOT(G,number_of_turns = 200, number_of_arms = 10, \
-#     arms_behavior = "Bernoulli", policies = ["variable_pool", \
-#         "Epsilon_z_greedy", "Epsilon_greedy", "Epsilon_soft_greedy", \
-#          "UCB_z" , "UCB_soft", "UCB"])
+# contextual_space = {}
+# contextual_space["continuous"]   = [  ["Normal", 3, 1], ["Normal", 13, 1], ["Uniform",0,10]  ]
+# contextual_space["binary"]       = [  0.9,   0,  0,  0.8,   0.9  ]
+# contextual_space["discrete"]     = [  ["Poisson",3], ["Poisson", 13], ["Uniform",0,10]  ]
+# contextual_space["categorical"]  = [ ]
+# contextual_space["norm_type"]    = "l2"
 #
-# number_of_games = 15
-# G = set_G_as(num_of_turns,"Wave")
-
-
-#-------------------------------------------------------------------------------
-# Play a number of games and save the cumulative reward to compare policies
-#-------------------------------------------------------------------------------
-# def compare_algorithms(number_of_games,  G, number_of_turns, number_of_arms,
-#      arms_behavior,  policies = ["Epsilon_greedy_kernel", \
-#                           "Epsilon_z_greedy_kernel"], greed_type="None", toPredict = "double_exponential_smoothing"):
-#     cumulative_rewards = {}
-#     trade_off = {}
-#     for policy in policies:
-#         cumulative_rewards[policy]= [False] * number_of_games # storage for the cululative rewards at the end of each game
-#         trade_off[policy]= [False] * number_of_games
-#     for game in xrange(number_of_games):
-#         print("\nPlaying game #"+str(game+1))
-#         df,rewards_history, tradeoff_history, total_of_arms_born, past_G_and_predicted_Gt, predicted_G, trend_G = RGOT(G, \
-#         toPredict = toPredict,number_of_turns = number_of_turns, number_of_arms=number_of_arms, \
-#         arms_behavior = arms_behavior, policies=policies, mortal=False, greed_type=greed_type)
-#         for policy in policies:
-#             cumulative_rewards[policy][game]=sum(rewards_history[policy])
-#             trade_off[policy][game]=sum(tradeoff_history[policy])
-#     return cumulative_rewards, trade_off
-
-def compare_algorithms_w(number_of_games,  G, number_of_turns, number_of_arms,
-     arms_behavior,  policies = ["Epsilon_greedy_kernel", \
-                          "Epsilon_z_greedy_kernel"], greed_type="None", toPredict = "double_exponential_smoothing"):
-    cumulative_rewards = {}
-    trade_off = {}
-    for policy in policies:
-        cumulative_rewards[policy]= [False] * number_of_games # storage for the cululative rewards at the end of each game
-        trade_off[policy]= [False] * number_of_games
-    for game in xrange(number_of_games):
-        print("\nPlaying game #"+str(game+1))
-        df,rewards_history, tradeoff_history, total_of_arms_born = RGOT(G,toPredict = None, number_of_turns = 300, number_of_arms = 10, \
-            arms_behavior = "Bernoulli",policies =  policies, \
-            mortal = 10, poisson_parameter = 0.2, greed_type="None",\
-            continuous = 3, distributions_continuous = [["Normal", 3, 1],["Normal", 13, 1],["Uniform",0,10]], \
-            binary = 0, p=[], discrete = 0, distributions_discrete = [  ], \
-            categorical = 0, categories = [   ], norm_type="l1")
-        for policy in policies:
-            cumulative_rewards[policy][game]=sum(rewards_history[policy])
-            trade_off[policy][game]=sum(tradeoff_history[policy])
-    return cumulative_rewards, trade_off
-
-for i in ["Mean", "Weighted_Mean", "Mean_Std", "Weighted_Mean_Std"]:
-    aa,bb,cc,dd,ee=RGOT(G,toPredict = None, number_of_turns = 1500, number_of_arms = 15, \
-        arms_behavior = "Bernoulli",policies =  ["Adaptive_greedy"], \
-        mortal = 15, poisson_parameter = 0.2, initialization_method=i, greed_type="None",\
-        continuous = 0, distributions_continuous = [], \
-        binary = 1, p=[1.0], discrete = 0, distributions_discrete = [  ], \
-        categorical = 0, categories = [ ]   , norm_type="l1")
-    print(i)
-    print(sum(bb["Adaptive_greedy"]))
-
-
-continuous = 3, distributions_continuous = [["Normal", 3, 1],["Normal", 13, 1],["Uniform",0,10]], \
-binary = 0, p=[], discrete = 0, distributions_discrete = [  ], \
-categorical = 0, categories = [   ]
-
-cumulative_rewards, trade_off=compare_algorithms_w(1,  G, 1000, 15, "Truncated_Normal",  policies = ["LinUCB","LinUCB_greedy","LinUCB_bayesian","LinUCB_bayesian_greedy","Epsilon_greedy_kernel","Epsilon_z_greedy_kernel"], greed_type="None", toPredict = None)
-
-,"Epsilon_greedy_kernel","Epsilon_z_greedy_kernel"
-
-
-"Epsilon_greedy_kernel", \
-                     "Epsilon_z_greedy_kernel",
-# to try:
-g = set_G_as(num_of_turns,"Wave")
-
-#-------------------------------------------------------------------------------
-
-
-cumulative_rewards, trade_off = compare_algorithms(number_of_games,  G, number_of_turns, number_of_arms, "Bernoulli",
-     policies = [ "variable_pool", \
-    "Epsilon_z_greedy", "Epsilon_greedy", "Epsilon_soft_greedy", \
-    "UCB_z" , "UCB_soft", "UCB"],toPredict = "double_exponential_smoothing")
-
-
-#-------------------------------------------------------------------------------
-# to show Histogram:
-ndf = policies_performance(cumulative_rewards2)
-output_file("means.html")
-hist = Bar(ndf, values='mean', title="Average cumulative reward for each policy",legend=None,color=Spectral7)
-show(hist)
-# OLD
-def policies_performance(cumulative_rewards): # needs numpy and pandas
-    # returns a dataframe where the indexes are the policies and the columns are
-    # mean and standard deviation of the cululative rewards
-    x=[]
-    for policy in cumulative_rewards.keys():
-        x.append([np.mean(cumulative_rewards[policy]), \
-        np.std(cumulative_rewards[policy])   ])
-    return pd.DataFrame(np.array(x),columns=['mean', 'std'], index = cumulative_rewards.keys() )
-#-------------------------------------------------------------------------------
-
-
-
-
-#-------------------------------------------------------------------------------
-# Plotting
-#-------------------------------------------------------------------------------
+# arms_features_space = {}
+# arms_features_space["continuous"]   = [  ["Normal", 31, 5],["Normal", 13, 5],["Uniform",4,20]  ]
+# arms_features_space["binary"]       = [  0.7,  0.2,  0.3 ]
+# arms_features_space["discrete"]     = [  ["Poisson",2], ["Uniform",5,11]  ]
+# arms_features_space["categorical"]  = [    ]
+# arms_features_space["norm_type"]    = "l2"
 #
-# hist = Histogram(df['total_pulls_Epsilon_greedy'], title="total_pulls_Epsilon_greedy" )
-# show(hist)
+# arms_features_space = {}
+# arms_features_space["continuous"]   = [   ]
+# arms_features_space["binary"]       = [   0.5, 0.1, 0.9, 0.3 , 0.5, 0.1, 0.9, 0.7,0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.3 ,0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.7,  0.2,  0.3 ]
+# arms_features_space["discrete"]     = [   ]
+# arms_features_space["categorical"]  = [    ]
+# arms_features_space["norm_type"]    = "l2"
 #
-# df2=pd.DataFrame(CR)
-# p = Bar(df2, 'arm_id', values='total_pulls_Epsilon_greedy', title="Tot")
-# show(p)
+# contextual_space = {}
+# contextual_space["continuous"]   = [   ]
+# contextual_space["binary"]       = [  0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.3 , 0.5, 0.1, 0.9, 0.7,0.7,  0.2,  0.3 , 0.5, 0.1, 0.9, 0.3 ]
+# contextual_space["discrete"]     = [  ]
+# contextual_space["categorical"]  = [ ]
+# contextual_space["norm_type"]    = "l2"
 #
-# p = Bar(df, 'arm_id', values='total_pulls_Epsilon_greedy', title="Tot")
-# show(p)
+# no_arms_feature = { "continuous": [], "binary":[1.0], "discrete":[], "categorical": [], "norm_type": "l2"}
 #
-# b = Bar(df, 'arm_id', values='mean_reward_Epsilon_greedy', title="Tot", legend=None)
-# show(b)
-#
-# c = Bar(df, 'arm_id', values='rewards_Epsilon_greedy', agg='sum' , title="Tot")
-# show(c)
-#
-#
-# len([i for i in range(num_of_turns)])
-# ###
-# from bokeh.plotting import figure, output_file, show
-# pp = figure(title="simple line example", x_axis_label='x', y_axis_label='y')
-# pp.legend.location='bottom_left'
-# pp.line([i for i in range(num_of_turns)], r, legend="Temp.", line_width=2)
-# show(pp)
-# html = file_html(pp, CDN, "my plot")
-# html
-#
-#
-#     # compute bound
-#
-# import matplotlib.cm as cm
-# colormap =cm.get_cmap("jet")
-# different_colors=7
-# color_mapping=colormap(np.linspace(0,1,different_colors),1,True)
-# bokeh_palette=["#%02x%02x%02x" % (r, g, b) for r, g, b in color_mapping[:,0:3]]
-#
-#     # compute betas to compare with 1/m
